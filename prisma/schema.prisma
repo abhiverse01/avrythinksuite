@@ -1,0 +1,124 @@
+// This is your Prisma schema file.
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AVRYTHINK SUITE — Database Schema
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Profile {
+  id         String   @id @default(cuid())
+  email      String
+  full_name  String?
+  avatar_url String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  files             FileItem[]
+  owned_orgs        Organization[]
+  org_memberships   OrgMember[]
+  file_collabs      FileCollaborator[]
+  exams             Exam[]
+}
+
+model Organization {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  logo_url   String?
+  plan       String   @default("free")
+  created_by String
+  created_at DateTime @default(now())
+
+  creator      Profile       @relation(fields: [created_by], references: [id])
+  members      OrgMember[]
+  files        FileItem[]
+  exams        Exam[]
+}
+
+model OrgMember {
+  id       String   @id @default(cuid())
+  org_id   String
+  user_id  String
+  role     String   @default("member")
+  joined_at DateTime @default(now())
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  user         Profile       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([org_id, user_id])
+}
+
+model FileItem {
+  id         String   @id @default(cuid())
+  name       String
+  type       String
+  content    String   @default("{}")
+  owner_id   String
+  org_id     String?
+  parent_id  String?
+  is_deleted Boolean  @default(false)
+  is_starred Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  owner          Profile              @relation(fields: [owner_id], references: [id])
+  organization   Organization?        @relation(fields: [org_id], references: [id])
+  parent         FileItem?            @relation("FileTree", fields: [parent_id], references: [id])
+  children       FileItem[]           @relation("FileTree")
+  collaborators  FileCollaborator[]
+  exam           Exam?
+}
+
+model FileCollaborator {
+  id          String @id @default(cuid())
+  file_id     String
+  user_id     String
+  permission  String @default("view")
+
+  file  FileItem @relation(fields: [file_id], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([file_id, user_id])
+}
+
+model Exam {
+  id           String   @id @default(cuid())
+  file_id      String   @unique
+  title        String
+  description  String?
+  questions    String   @default("[]")
+  settings     String   @default("{}")
+  share_token  String   @unique
+  is_published Boolean  @default(false)
+  created_by   String
+  org_id       String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  file        FileItem          @relation(fields: [file_id], references: [id])
+  creator     Profile           @relation(fields: [created_by], references: [id])
+  organization Organization?    @relation(fields: [org_id], references: [id])
+  submissions ExamSubmission[]
+}
+
+model ExamSubmission {
+  id                String   @id @default(cuid())
+  exam_id           String
+  respondent_name   String
+  respondent_email  String
+  answers           String   @default("{}")
+  score             Float?
+  total_points      Int      @default(0)
+  submitted_at      DateTime @default(now())
+
+  exam Exam @relation(fields: [exam_id], references: [id], onDelete: Cascade)
+}
